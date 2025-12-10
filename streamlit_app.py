@@ -66,7 +66,7 @@ def load_data():
         {'Company': 'Pearl Abyss', 'Metric': 'EBITDA Margin', 'Value': 4.9},
     ]
     
-    # [NEW] 시프트업 IP별 상세 데이터 (단위: 억원, %)
+    # IP별 상세 데이터 (단위: 억원, %)
     shiftup_ip_data = [
         {'Quarter': '1Q25', 'IP': 'NIKKE', 'Revenue': 323, 'Share': 76.5},
         {'Quarter': '1Q25', 'IP': 'Stellar Blade', 'Revenue': 90, 'Share': 21.3},
@@ -75,10 +75,19 @@ def load_data():
         {'Quarter': '3Q25', 'IP': 'NIKKE', 'Revenue': 445, 'Share': 58.9},
         {'Quarter': '3Q25', 'IP': 'Stellar Blade', 'Revenue': 277, 'Share': 36.7},
     ]
+    
+    # [NEW] 생산성 데이터 (인당 영업이익만 포함)
+    productivity_data = [
+        {'Company': 'Shift Up', 'Headcount': 322, 'OP_2024': 1485, 'OP_per_Employee': 4.6, 'Dev_Ratio': 90, 'Avg_Tenure': 3.3},
+        {'Company': 'Krafton', 'Headcount': 1916, 'OP_2024': 11825, 'OP_per_Employee': 6.2, 'Dev_Ratio': None, 'Avg_Tenure': 3.2},
+        {'Company': 'Netmarble', 'Headcount': 749, 'OP_2024': 1581, 'OP_per_Employee': 2.1, 'Dev_Ratio': None, 'Avg_Tenure': None},
+        {'Company': 'NCSoft', 'Headcount': 3269, 'OP_2024': -1092, 'OP_per_Employee': -0.33, 'Dev_Ratio': 70.8, 'Avg_Tenure': 7.8},
+        {'Company': 'Pearl Abyss', 'Headcount': 724, 'OP_2024': -121, 'OP_per_Employee': -0.17, 'Dev_Ratio': 60, 'Avg_Tenure': None},
+    ]
 
-    return pd.DataFrame(quarterly_data), pd.DataFrame(annual_2024_data), pd.DataFrame(shiftup_ip_data)
+    return pd.DataFrame(quarterly_data), pd.DataFrame(annual_2024_data), pd.DataFrame(shiftup_ip_data), pd.DataFrame(productivity_data)
 
-df_quarter, df_annual, df_shiftup_ip = load_data()
+df_quarter, df_annual, df_shiftup_ip, df_productivity = load_data()
 
 # -----------------------------------------------------------------------------
 # 3. 사이드바 옵션
@@ -94,10 +103,10 @@ selected_companies = st.sidebar.multiselect(
 filtered_df = df_quarter[df_quarter['Company'].isin(selected_companies)]
 
 # -----------------------------------------------------------------------------
-# 4. 메인 대시보드 구성 (Altair 활용)
+# 4. 메인 대시보드 구성
 # -----------------------------------------------------------------------------
 
-tab1, tab2, tab3 = st.tabs(["📊 2025 분기별 마진 비교", "🚀 시프트업 심층 분석", "📅 2024 연간 비교"])
+tab1, tab2, tab3, tab4 = st.tabs(["📊 2025 분기별 마진 비교", "🚀 시프트업 심층 분석", "👥 생산성 분석", "📅 2024 연간 비교"])
 
 with tab1:
     st.subheader("2025년 1Q ~ 3Q 영업이익률(OPM) 추이")
@@ -174,7 +183,7 @@ with tab2:
 
     st.divider()
     
-    # [NEW] IP별 상세 분석 섹션
+    # IP별 상세 분석 섹션
     st.subheader("💡 IP별 상세 분석: 니케(NIKKE) vs 스텔라 블레이드")
     
     col_ip_chart, col_ip_text = st.columns([1, 1])
@@ -228,8 +237,106 @@ with tab2:
     
     st.altair_chart(combined_chart, use_container_width=True)
 
-
 with tab3:
+    st.header("👥 기업별 생산성 분석")
+    
+    st.markdown("""
+    각 기업의 **조직 규모, 인당 영업이익, 개발 인력 비중** 등을 비교하여 
+    비즈니스 모델에 따른 생산성 차이를 분석합니다.
+    """)
+    
+    # 상단 KPI: 인당 영업이익 비교
+    st.subheader("📌 2024년 인당 영업이익 비교")
+    
+    # 적자 기업 제외한 차트 (양수만)
+    df_prod_positive = df_productivity[df_productivity['OP_per_Employee'] > 0].copy()
+    
+    chart_prod = alt.Chart(df_prod_positive).mark_bar().encode(
+        x=alt.X('Company:N', sort='-y', title='기업'),
+        y=alt.Y('OP_per_Employee:Q', title='인당 영업이익 (억원)'),
+        color=alt.Color('Company:N', scale=alt.Scale(domain=['Shift Up', 'Krafton', 'Netmarble'], 
+                                                      range=['#FF4B4B', '#1F77B4', '#FF7F0E'])),
+        tooltip=['Company', 'Headcount', 'OP_per_Employee']
+    ).properties(height=350, title='인당 영업이익 비교 (적자 기업 제외)')
+    
+    st.altair_chart(chart_prod, use_container_width=True)
+    
+    st.divider()
+    
+    # 기업별 상세 정보
+    col_detail1, col_detail2 = st.columns(2)
+    
+    with col_detail1:
+        st.subheader("🏢 직원수 및 조직 특성")
+        
+        # 직원수 표시
+        chart_headcount = alt.Chart(df_productivity).mark_bar().encode(
+            x=alt.X('Company:N', sort='-y', title='기업'),
+            y=alt.Y('Headcount:Q', title='직원수 (명)'),
+            color='Company:N',
+            tooltip=['Company', 'Headcount', 'Dev_Ratio', 'Avg_Tenure']
+        ).properties(height=300)
+        
+        st.altair_chart(chart_headcount, use_container_width=True)
+        
+        st.caption("**시프트업:** 322명으로 최소 규모, 개발직 90%")
+        st.caption("**크래프톤:** 1,916명, 평균 근속 3.2년")
+        st.caption("**NC소프트:** 3,269명, 개발직 70.8%, 평균 근속 7.8년 (최장)")
+
+    with col_detail2:
+        st.subheader("💼 개발 인력 비중")
+        
+        df_dev_ratio = df_productivity.dropna(subset=['Dev_Ratio'])
+        
+        if not df_dev_ratio.empty:
+            chart_dev = alt.Chart(df_dev_ratio).mark_bar().encode(
+                x=alt.X('Company:N', title='기업'),
+                y=alt.Y('Dev_Ratio:Q', title='개발직 비중 (%)'),
+                color='Company:N',
+                tooltip=['Company', 'Dev_Ratio']
+            ).properties(height=300)
+            
+            st.altair_chart(chart_dev, use_container_width=True)
+            
+            st.caption("**시프트업 90%:** IP 개발 중심, 경영진 최소화")
+            st.caption("**NC소프트 70.8%:** R&D 집중, MMORPG 개발 역량")
+            st.caption("**펄어비스 60%:** 자체 퍼블리싱 병행")
+    
+    st.divider()
+    
+    # 생산성 인사이트
+    st.subheader("🔍 생산성 핵심 인사이트")
+    
+    col_insight1, col_insight2, col_insight3 = st.columns(3)
+    
+    with col_insight1:
+        st.info("""
+        **🥇 시프트업**
+        - 인당 영업이익 4.6억원
+        - 로열티 기반 고마진 모델
+        - 개발 인력 90% 집중
+        - 파트너 레버리지 활용
+        """)
+    
+    with col_insight2:
+        st.success("""
+        **🥈 크래프톤**
+        - 인당 영업이익 6.2억원
+        - 절대 규모 + 안정성
+        - PUBG IP 집중 구조
+        - 자체 퍼블리싱
+        """)
+    
+    with col_insight3:
+        st.warning("""
+        **🥉 넷마블**
+        - 인당 영업이익 2.1억원
+        - 구조조정 후 회복 중
+        - 자체 IP 비중 확대
+        - 수수료율 감소 중
+        """)
+
+with tab4:
     st.subheader("2024년 연간 마진 랭킹 Comparison")
     
     # 2024년 데이터 시각화
@@ -259,4 +366,13 @@ with st.expander("📂 원본 데이터 보기 (2025 분기별)"):
         'OP': '{:,.0f} 억원',
         'OPM': '{:.1f}%',
         'EBITDA_Margin': '{:.1f}%'
+    }))
+
+with st.expander("📂 생산성 데이터 보기 (2024년)"):
+    st.dataframe(df_productivity.style.format({
+        'Headcount': '{:,} 명',
+        'OP_2024': '{:,.0f} 억원',
+        'OP_per_Employee': '{:.2f} 억원',
+        'Dev_Ratio': '{:.1f}%',
+        'Avg_Tenure': '{:.1f}년'
     }))
