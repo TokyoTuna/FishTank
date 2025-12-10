@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import altair as alt
 
 # -----------------------------------------------------------------------------
 # 1. 페이지 설정 및 제목
@@ -14,10 +15,11 @@ st.title("🎮 2025 주요 한국 게임사 실적 및 마진 분석")
 st.markdown("""
 이 대시보드는 **시프트업**을 중심으로 **크래프톤, 넥슨, NC소프트, 넷마블, 펄어비스** 등 
 주요 한국 게임사의 2024년 및 2025년 3분기까지의 재무 성과(매출, 영업이익, 마진율)를 비교 분석합니다.
+(Plotly 미사용 버전)
 """)
 
 # -----------------------------------------------------------------------------
-# 2. 데이터 준비 (하드코딩된 데이터 사용)
+# 2. 데이터 준비
 # -----------------------------------------------------------------------------
 @st.cache_data
 def load_data():
@@ -83,116 +85,120 @@ selected_companies = st.sidebar.multiselect(
 filtered_df = df_quarter[df_quarter['Company'].isin(selected_companies)]
 
 # -----------------------------------------------------------------------------
-# 4. 메인 대시보드 구성
+# 4. 메인 대시보드 구성 (Altair 활용)
 # -----------------------------------------------------------------------------
 
-# Tab 구성
 tab1, tab2, tab3 = st.tabs(["📊 2025 분기별 마진 비교", "🚀 시프트업 심층 분석", "📅 2024 연간 비교"])
 
 with tab1:
     st.subheader("2025년 1Q ~ 3Q 영업이익률(OPM) 추이")
-    st.markdown("시프트업은 3분기 내내 **60% 이상의 영업이익률**을 유지하며 압도적인 수익성을 보여줍니다.")
     
-    # Line Chart: 영업이익률 추이
-    fig_opm = px.line(filtered_df, x='Quarter', y='OPM', color='Company', markers=True,
-                      title='분기별 영업이익률(%) 추이',
-                      color_discrete_map={
-                          'Shift Up': '#FF4B4B', 'Krafton': '#1F77B4', 'Nexon': '#2CA02C',
-                          'Netmarble': '#FF7F0E', 'NCSoft': '#9467BD', 'Pearl Abyss': '#8C564B'
-                      })
-    fig_opm.update_traces(line=dict(width=3), marker=dict(size=8))
-    fig_opm.update_layout(yaxis_title="영업이익률 (%)", hovermode="x unified")
-    st.plotly_chart(fig_opm, use_container_width=True)
+    # Altair Line Chart
+    chart_opm = alt.Chart(filtered_df).mark_line(point=True).encode(
+        x='Quarter:N',
+        y=alt.Y('OPM:Q', title='영업이익률 (%)'),
+        color='Company:N',
+        tooltip=['Company', 'Quarter', 'OPM']
+    ).properties(height=400).interactive()
+    
+    st.altair_chart(chart_opm, use_container_width=True)
 
     col1, col2 = st.columns(2)
     
+    # 3Q25 데이터만 추출
+    df_3q = filtered_df[filtered_df['Quarter'] == '3Q25']
+
     with col1:
-        st.subheader("3Q25 매출액 비교 (억원)")
-        df_3q = filtered_df[filtered_df['Quarter'] == '3Q25'].sort_values('Revenue', ascending=False)
-        fig_rev = px.bar(df_3q, x='Company', y='Revenue', color='Company', text_auto=True,
-                         color_discrete_map={
-                          'Shift Up': '#FF4B4B', 'Krafton': '#1F77B4', 'Nexon': '#2CA02C',
-                          'Netmarble': '#FF7F0E', 'NCSoft': '#9467BD', 'Pearl Abyss': '#8C564B'
-                      })
-        fig_rev.update_layout(showlegend=False)
-        st.plotly_chart(fig_rev, use_container_width=True)
-        st.caption("매출 규모는 크래프톤, 넷마블, 넥슨이 압도적입니다.")
+        st.subheader("3Q25 매출액 (억원)")
+        if not df_3q.empty:
+            chart_rev = alt.Chart(df_3q).mark_bar().encode(
+                x=alt.X('Company:N', sort='-y'),
+                y=alt.Y('Revenue:Q', title='매출 (억원)'),
+                color='Company:N',
+                tooltip=['Company', 'Revenue']
+            ).properties(height=300)
+            st.altair_chart(chart_rev, use_container_width=True)
+        else:
+            st.write("데이터 없음")
 
     with col2:
-        st.subheader("3Q25 영업이익 비교 (억원)")
-        df_3q_op = filtered_df[filtered_df['Quarter'] == '3Q25'].sort_values('OP', ascending=False)
-        fig_op = px.bar(df_3q_op, x='Company', y='OP', color='Company', text_auto=True,
-                        color_discrete_map={
-                          'Shift Up': '#FF4B4B', 'Krafton': '#1F77B4', 'Nexon': '#2CA02C',
-                          'Netmarble': '#FF7F0E', 'NCSoft': '#9467BD', 'Pearl Abyss': '#8C564B'
-                      })
-        fig_op.update_layout(showlegend=False)
-        st.plotly_chart(fig_op, use_container_width=True)
-        st.caption("시프트업은 매출 대비 영업이익 규모가 매우 큽니다.")
-
+        st.subheader("3Q25 영업이익 (억원)")
+        if not df_3q.empty:
+            chart_op = alt.Chart(df_3q).mark_bar().encode(
+                x=alt.X('Company:N', sort='-y'),
+                y=alt.Y('OP:Q', title='영업이익 (억원)'),
+                color='Company:N',
+                tooltip=['Company', 'OP']
+            ).properties(height=300)
+            st.altair_chart(chart_op, use_container_width=True)
+        else:
+            st.write("데이터 없음")
+            
     st.subheader("EBITDA 마진 비교 (데이터 가용 기업)")
-    # EBITDA 데이터가 있는 기업만 필터링
     df_ebitda = filtered_df.dropna(subset=['EBITDA_Margin'])
-    fig_ebitda = px.bar(df_ebitda, x='Company', y='EBITDA_Margin', color='Quarter', barmode='group',
-                        text_auto=True, title='분기별 EBITDA 마진 (%)',
-                        color_discrete_sequence=px.colors.qualitative.Pastel)
-    st.plotly_chart(fig_ebitda, use_container_width=True)
+    
+    if not df_ebitda.empty:
+        chart_ebitda = alt.Chart(df_ebitda).mark_bar().encode(
+            x=alt.X('Quarter:N', title=None),
+            y=alt.Y('EBITDA_Margin:Q', title='EBITDA 마진 (%)'),
+            color='Company:N',
+            column=alt.Column('Company:N', header=alt.Header(title=None)),
+            tooltip=['Company', 'Quarter', 'EBITDA_Margin']
+        ).properties(width=100)
+        st.altair_chart(chart_ebitda, use_container_width=False)
 
 with tab2:
     st.header("🚀 Shift Up: 압도적 수익성의 비밀")
     
     col_kpi1, col_kpi2, col_kpi3 = st.columns(3)
     
-    # 시프트업 3Q25 주요 지표
-    su_3q = df_quarter[(df_quarter['Company'] == 'Shift Up') & (df_quarter['Quarter'] == '3Q25')].iloc[0]
-    
-    with col_kpi1:
-        st.metric(label="3Q25 영업이익률", value=f"{su_3q['OPM']}%", delta="4.9%p (vs 2Q25)")
-    with col_kpi2:
-        st.metric(label="3Q25 EBITDA 마진", value=f"{su_3q['EBITDA_Margin']}%", delta="5.3%p (vs 2Q25)")
-    with col_kpi3:
-        st.metric(label="2024 직원수 (약)", value="322명", delta="인당 생산성 최상위")
-
-    st.markdown("---")
-    
-    st.markdown("""
-    ### 💡 핵심 분석 포인트
-    1.  **변동비 구조의 강점**: 3Q25 매출이 2Q25(스텔라 블레이드 출시 효과) 대비 감소했음에도, 마케팅비/수수료 등 변동비가 더 크게 감소하여 마진율은 오히려 상승(60.7% → 65.6%)했습니다.
-    2.  **IP 포트폴리오**: 
-        *   **승리의 여신: 니케**: 안정적인 현금 창출원 (Cash Cow)
-        *   **스텔라 블레이드**: 고마진 콘솔/PC 패키지 + 로열티 매출
-    3.  **생산성**: 약 300명대의 인력으로 연간 1,500억 원 이상의 영업이익을 창출하는 구조는 타 대형 게임사(수천 명 인력)와 차별화됩니다.
-    """)
-    
-    # 시프트업 전용 차트
     su_data = df_quarter[df_quarter['Company'] == 'Shift Up']
     
-    fig_su = go.Figure()
-    fig_su.add_trace(go.Bar(x=su_data['Quarter'], y=su_data['Revenue'], name='매출(억원)', marker_color='#FF9F9F'))
-    fig_su.add_trace(go.Bar(x=su_data['Quarter'], y=su_data['OP'], name='영업이익(억원)', marker_color='#FF4B4B'))
-    fig_su.add_trace(go.Scatter(x=su_data['Quarter'], y=su_data['OPM'], name='영업이익률(%)', yaxis='y2', mode='lines+markers', line=dict(color='black', width=3)))
-    
-    fig_su.update_layout(
-        title='시프트업 2025 분기별 실적 및 이익률',
-        yaxis=dict(title='금액 (억원)'),
-        yaxis2=dict(title='이익률 (%)', overlaying='y', side='right', range=[0, 100]),
-        legend=dict(x=0.1, y=1.1, orientation='h')
-    )
-    st.plotly_chart(fig_su, use_container_width=True)
+    if not su_data.empty:
+        su_3q = su_data[su_data['Quarter'] == '3Q25'].iloc[0]
+        
+        with col_kpi1:
+            st.metric(label="3Q25 영업이익률", value=f"{su_3q['OPM']}%", delta="4.9%p (vs 2Q25)")
+        with col_kpi2:
+            st.metric(label="3Q25 EBITDA 마진", value=f"{su_3q['EBITDA_Margin']}%", delta="5.3%p (vs 2Q25)")
+        with col_kpi3:
+            st.metric(label="2024 직원수 (약)", value="322명", delta="인당 생산성 최상위")
+
+        st.markdown("---")
+        
+        # 시프트업 복합 차트 (Altair)
+        base = alt.Chart(su_data).encode(x='Quarter:N')
+        
+        bar = base.mark_bar(color='#FF9F9F').encode(
+            y=alt.Y('Revenue:Q', axis=alt.Axis(title='금액 (억원)', titleColor='#FF9F9F')),
+            tooltip=['Quarter', 'Revenue']
+        )
+        
+        line = base.mark_line(color='red', point=True).encode(
+            y=alt.Y('OPM:Q', axis=alt.Axis(title='영업이익률 (%)', titleColor='red')),
+            tooltip=['Quarter', 'OPM']
+        )
+        
+        combined_chart = alt.layer(bar, line).resolve_scale(y='independent').properties(
+            title='시프트업 매출 및 이익률 추이'
+        )
+        
+        st.altair_chart(combined_chart, use_container_width=True)
 
 with tab3:
     st.subheader("2024년 연간 마진 랭킹 Comparison")
-    st.markdown("2024년 전체 실적 기준으로도 시프트업은 **가장 높은 수익성**을 기록했습니다.")
-
-    # 영업이익률 vs EBITDA 마진 비교 차트
-    fig_annual = px.bar(df_annual, x='Company', y='Value', color='Metric', barmode='group',
-                        text_auto=True,
-                        category_orders={"Company": ["Shift Up", "Krafton", "Nexon", "Netmarble", "Pearl Abyss", "NCSoft"]},
-                        color_discrete_map={'OP Margin': '#1f77b4', 'EBITDA Margin': '#2ca02c'})
     
-    fig_annual.update_layout(yaxis_title="마진 (%)", xaxis_title="기업")
-    st.plotly_chart(fig_annual, use_container_width=True)
-
+    # 2024년 데이터 시각화
+    chart_annual = alt.Chart(df_annual).mark_bar().encode(
+        x=alt.X('Company:N', sort='-y', title='기업'),
+        y=alt.Y('Value:Q', title='마진 (%)'),
+        color='Metric:N',
+        xOffset='Metric:N', # Grouped Bar 효과
+        tooltip=['Company', 'Metric', 'Value']
+    ).properties(height=400)
+    
+    st.altair_chart(chart_annual, use_container_width=True)
+    
     st.markdown("""
     *   **Tier 1 (초고수익성):** 시프트업 (약 70%)
     *   **Tier 2 (고수익성):** 크래프톤 (약 45%)
