@@ -15,7 +15,6 @@ st.title("🎮 2025 주요 한국 게임사 실적 및 마진 분석")
 st.markdown("""
 이 대시보드는 **시프트업**을 중심으로 **크래프톤, 넥슨, NC소프트, 넷마블, 펄어비스** 등 
 주요 한국 게임사의 2024년 및 2025년 3분기까지의 재무 성과(매출, 영업이익, 마진율)를 비교 분석합니다.
-(Plotly 미사용 버전)
 """)
 
 # -----------------------------------------------------------------------------
@@ -66,10 +65,20 @@ def load_data():
         {'Company': 'Pearl Abyss', 'Metric': 'OP Margin', 'Value': -3.5},
         {'Company': 'Pearl Abyss', 'Metric': 'EBITDA Margin', 'Value': 4.9},
     ]
+    
+    # [NEW] 시프트업 IP별 상세 데이터 (단위: 억원, %)
+    shiftup_ip_data = [
+        {'Quarter': '1Q25', 'IP': 'NIKKE', 'Revenue': 323, 'Share': 76.5},
+        {'Quarter': '1Q25', 'IP': 'Stellar Blade', 'Revenue': 90, 'Share': 21.3},
+        {'Quarter': '2Q25', 'IP': 'NIKKE', 'Revenue': 451, 'Share': 40.1},
+        {'Quarter': '2Q25', 'IP': 'Stellar Blade', 'Revenue': 657, 'Share': 58.5},
+        {'Quarter': '3Q25', 'IP': 'NIKKE', 'Revenue': 445, 'Share': 58.9},
+        {'Quarter': '3Q25', 'IP': 'Stellar Blade', 'Revenue': 277, 'Share': 36.7},
+    ]
 
-    return pd.DataFrame(quarterly_data), pd.DataFrame(annual_2024_data)
+    return pd.DataFrame(quarterly_data), pd.DataFrame(annual_2024_data), pd.DataFrame(shiftup_ip_data)
 
-df_quarter, df_annual = load_data()
+df_quarter, df_annual, df_shiftup_ip = load_data()
 
 # -----------------------------------------------------------------------------
 # 3. 사이드바 옵션
@@ -150,13 +159,12 @@ with tab1:
 with tab2:
     st.header("🚀 Shift Up: 압도적 수익성의 비밀")
     
+    # 상단 KPI
     col_kpi1, col_kpi2, col_kpi3 = st.columns(3)
-    
     su_data = df_quarter[df_quarter['Company'] == 'Shift Up']
     
     if not su_data.empty:
         su_3q = su_data[su_data['Quarter'] == '3Q25'].iloc[0]
-        
         with col_kpi1:
             st.metric(label="3Q25 영업이익률", value=f"{su_3q['OPM']}%", delta="4.9%p (vs 2Q25)")
         with col_kpi2:
@@ -164,26 +172,62 @@ with tab2:
         with col_kpi3:
             st.metric(label="2024 직원수 (약)", value="322명", delta="인당 생산성 최상위")
 
-        st.markdown("---")
+    st.divider()
+    
+    # [NEW] IP별 상세 분석 섹션
+    st.subheader("💡 IP별 상세 분석: 니케(NIKKE) vs 스텔라 블레이드")
+    
+    col_ip_chart, col_ip_text = st.columns([1, 1])
+    
+    with col_ip_chart:
+        # IP별 매출 기여도 Stacked Bar Chart
+        chart_ip = alt.Chart(df_shiftup_ip).mark_bar().encode(
+            x=alt.X('Quarter:N', title='분기'),
+            y=alt.Y('Revenue:Q', title='매출 (억원)'),
+            color=alt.Color('IP:N', scale=alt.Scale(domain=['NIKKE', 'Stellar Blade'], range=['#FF4B4B', '#1F77B4'])),
+            tooltip=['Quarter', 'IP', 'Revenue', 'Share']
+        ).properties(title='분기별 IP 매출 구성 (억원)', height=300)
         
-        # 시프트업 복합 차트 (Altair)
-        base = alt.Chart(su_data).encode(x='Quarter:N')
+        st.altair_chart(chart_ip, use_container_width=True)
+
+    with col_ip_text:
+        st.markdown("""
+        **1. 🛡️ 승리의 여신: 니케 (Cash Cow)**
+        *   **특징:** 3Q25 YoY **+29.9%** 성장하며 장기 흥행 궤도 진입.
+        *   **수익 모델:** 안정적인 F2P 라이브 서비스 + 로열티 구조.
+        *   **역할:** 분기별 변동성을 잡아주는 든든한 버팀목 (기여도 40~76%).
         
-        bar = base.mark_bar(color='#FF9F9F').encode(
-            y=alt.Y('Revenue:Q', axis=alt.Axis(title='금액 (억원)', titleColor='#FF9F9F')),
-            tooltip=['Quarter', 'Revenue']
-        )
+        **2. ⚔️ 스텔라 블레이드 (Growth Engine)**
+        *   **특징:** 2Q25 **PC 출시 효과**로 분기 매출 1위(657억원) 달성.
+        *   **수익 모델:** 패키지 판매 + 소니/스팀 플랫폼 로열티.
+        *   **역할:** 신작 출시에 따른 폭발적인 매출 점프-업(Jump-up).
         
-        line = base.mark_line(color='red', point=True).encode(
-            y=alt.Y('OPM:Q', axis=alt.Axis(title='영업이익률 (%)', titleColor='red')),
-            tooltip=['Quarter', 'OPM']
-        )
-        
-        combined_chart = alt.layer(bar, line).resolve_scale(y='independent').properties(
-            title='시프트업 매출 및 이익률 추이'
-        )
-        
-        st.altair_chart(combined_chart, use_container_width=True)
+        **3. 📊 시너지 효과**
+        *   **안정성 + 성장성:** 서로 다른 수명 주기(Lifecycle)를 가진 두 IP가 교차하며 **60%대 고마진**을 지속 견인.
+        """)
+
+    st.divider()
+
+    # 기존 시프트업 전체 실적 차트
+    st.subheader("📈 시프트업 전체 매출 및 이익률 추이")
+    base = alt.Chart(su_data).encode(x='Quarter:N')
+    
+    bar = base.mark_bar(color='#FF9F9F').encode(
+        y=alt.Y('Revenue:Q', axis=alt.Axis(title='금액 (억원)', titleColor='#FF9F9F')),
+        tooltip=['Quarter', 'Revenue']
+    )
+    
+    line = base.mark_line(color='red', point=True).encode(
+        y=alt.Y('OPM:Q', axis=alt.Axis(title='영업이익률 (%)', titleColor='red')),
+        tooltip=['Quarter', 'OPM']
+    )
+    
+    combined_chart = alt.layer(bar, line).resolve_scale(y='independent').properties(
+        height=350
+    )
+    
+    st.altair_chart(combined_chart, use_container_width=True)
+
 
 with tab3:
     st.subheader("2024년 연간 마진 랭킹 Comparison")
