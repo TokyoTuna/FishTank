@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import plotly.graph_objects as go
 
 # -----------------------------------------------------------------------------
 # 1. 페이지 설정 및 제목
