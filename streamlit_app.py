@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px  # <-- 이 줄이 빠져 있을 가능성이 높습니다!
 import plotly.graph_objects as go
 
 # -----------------------------------------------------------------------------
